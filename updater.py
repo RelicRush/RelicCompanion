@@ -1,5 +1,5 @@
 """
-GitHub Auto-Updater for Warframe Relic Companion.
+GitHub Auto-Updater for The Relic Vault.
 Checks for updates from GitHub releases and handles the update process.
 Supports both Python script and compiled exe versions.
 """
@@ -25,7 +25,7 @@ except ImportError:
 
 
 # Current version - increment this with each release
-__version__ = "1.1.5"
+__version__ = "1.1.6"
 
 # GitHub repository info
 GITHUB_OWNER = "RelicRush"
@@ -315,9 +315,9 @@ def download_exe_update(download_url: str, progress_callback: Optional[Callable[
             shutil.rmtree(temp_dir)
         os.makedirs(temp_dir)
         
-        temp_exe = os.path.join(temp_dir, "Warframe Relic Companion_new.exe")
+        temp_exe = os.path.join(temp_dir, "TheRelicVault_new.exe")
         
-        headers = {"User-Agent": "WarframeRelicCompanion-Updater"}
+        headers = {"User-Agent": "TheRelicVault-Updater"}
         
         if HAS_REQUESTS:
             response = requests.get(download_url, headers=headers, stream=True, timeout=120)
@@ -377,7 +377,7 @@ def create_update_script(new_exe_path: str, current_exe_path: str) -> str:
     script_content = f'''@echo off
 setlocal enabledelayedexpansion
 echo ============================================
-echo   Updating Warframe Relic Companion...
+echo   Updating The Relic Vault...
 echo ============================================
 echo.
 
@@ -450,7 +450,7 @@ del /f /q "{current_exe_path}.backup" >NUL 2>&1
 :: Small delay before launching
 timeout /t 2 /nobreak >NUL
 
-echo Starting Warframe Relic Companion...
+echo Starting The Relic Vault...
 start "" "{current_exe_path}"
 
 :: Clean up update files after a delay

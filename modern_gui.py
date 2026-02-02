@@ -1,5 +1,5 @@
 """
-Warframe Relic Companion - Modern GUI Application
+The Relic Vault - Modern GUI Application
 A sleek 2026 interface using CustomTkinter
 """
 
@@ -29,7 +29,7 @@ ctk.set_default_color_theme("blue")
 
 
 class ModernRelicApp(ctk.CTk):
-    """Modern GUI Application for the Warframe Relic Companion."""
+    """Modern GUI Application for The Relic Vault."""
     
     COLORS = {
         'bg_primary': '#0a0a0a',
@@ -52,8 +52,8 @@ class ModernRelicApp(ctk.CTk):
     
     # Fun custom titles for specific users (case-insensitive)
     CUSTOM_TITLES = {
-        'itsveilor': ('The Alpha Lovre', '#ffd700'),
-        'relichunter': ('🎯 Relic God', '#8b5cf6'),
+        'itsveilor': ('Twitch.tv/ItsVeilor', '#ffd700'),
+        'weeyins': ('The Creator', '#8b5cf6'),
         'barohunter': ('🪙 Ducat Daddy', '#fbbf24'),
         'formafarm': ('⚡ Forma Fiend', '#60a5fa'),
         'primepapi': ('💎 Prime Papi', '#22c55e'),
@@ -67,7 +67,7 @@ class ModernRelicApp(ctk.CTk):
         self.settings_file = os.path.join(get_db_dir(), "settings.json")
         
         # Window setup
-        self.title("Relic Companion")
+        self.title("The Relic Vault")
         self.geometry("1200x800")
         self.minsize(1000, 700)
         self.configure(fg_color=self.COLORS['bg_primary'])
@@ -217,12 +217,17 @@ class ModernRelicApp(ctk.CTk):
                              fg_color=self.COLORS['accent'], corner_radius=2)
         accent.pack(side="left", padx=(0, 12))
         
+        title_label0 = ctk.CTkLabel(logo_frame, text="THE", 
+                                  font=ctk.CTkFont(family="Segoe UI", size=14, weight="bold"),
+                                  text_color=self.COLORS['text_muted'])
+        title_label0.pack(side="left")
+        
         title_label = ctk.CTkLabel(logo_frame, text="RELIC", 
                                   font=ctk.CTkFont(family="Segoe UI", size=20, weight="bold"),
                                   text_color=self.COLORS['text'])
-        title_label.pack(side="left")
+        title_label.pack(side="left", padx=(6, 0))
         
-        title_label2 = ctk.CTkLabel(logo_frame, text="COMPANION", 
+        title_label2 = ctk.CTkLabel(logo_frame, text="VAULT", 
                                    font=ctk.CTkFont(family="Segoe UI", size=20, weight="bold"),
                                    text_color=self.COLORS['accent'])
         title_label2.pack(side="left", padx=(6, 0))
