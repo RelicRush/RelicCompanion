@@ -25,7 +25,7 @@ except ImportError:
 
 
 # Current version - increment this with each release
-__version__ = "1.1.3"
+__version__ = "1.1.4"
 
 # GitHub repository info
 GITHUB_OWNER = "RelicRush"
@@ -371,54 +371,90 @@ def create_update_script(new_exe_path: str, current_exe_path: str) -> str:
     script_path = os.path.join(script_dir, "update.bat")
     
     exe_name = os.path.basename(current_exe_path)
+    new_exe_size = os.path.getsize(new_exe_path) if os.path.exists(new_exe_path) else 0
     
     # Batch script that waits for app to close, replaces EXE, restarts
     script_content = f'''@echo off
-echo Updating Warframe Relic Companion...
-echo Please wait...
+setlocal enabledelayedexpansion
+echo ============================================
+echo   Updating Warframe Relic Companion...
+echo ============================================
+echo.
 
 :: Wait for the app to close
+echo Waiting for application to close...
 set /a count=0
 :waitloop
 tasklist /FI "IMAGENAME eq {exe_name}" 2>NUL | find /I "{exe_name}" >NUL
-if "%ERRORLEVEL%"=="0" (
+if "!ERRORLEVEL!"=="0" (
     set /a count+=1
-    if %count% GEQ 30 (
-        echo Timeout waiting for app to close.
+    if !count! GEQ 60 (
+        echo ERROR: Timeout waiting for app to close.
+        echo Please close the application manually and try again.
         pause
         exit /b 1
     )
     timeout /t 1 /nobreak >NUL
     goto waitloop
 )
+echo Application closed.
 
-:: Extra delay for file handles
-timeout /t 2 /nobreak >NUL
+:: Extra delay for file handles to be released
+echo Waiting for file handles to release...
+timeout /t 3 /nobreak >NUL
 
 :: Backup old EXE
-if exist "{current_exe_path}.backup" del /f /q "{current_exe_path}.backup"
-move /y "{current_exe_path}" "{current_exe_path}.backup" >NUL 2>&1
+echo Creating backup...
+if exist "{current_exe_path}.backup" del /f /q "{current_exe_path}.backup" >NUL 2>&1
+if exist "{current_exe_path}" (
+    move /y "{current_exe_path}" "{current_exe_path}.backup" >NUL 2>&1
+    if !ERRORLEVEL! NEQ 0 (
+        echo ERROR: Could not backup old EXE. File may be in use.
+        pause
+        exit /b 1
+    )
+)
+echo Backup created.
 
-:: Copy new EXE
-copy /y "{new_exe_path}" "{current_exe_path}" >NUL
-if "%ERRORLEVEL%" NEQ "0" (
-    echo Update failed! Restoring backup...
-    move /y "{current_exe_path}.backup" "{current_exe_path}" >NUL
+:: Copy new EXE using xcopy for better reliability
+echo Installing update...
+xcopy /y /q "{new_exe_path}" "{current_exe_path}*" >NUL 2>&1
+if !ERRORLEVEL! NEQ 0 (
+    echo ERROR: Update failed during copy!
+    echo Restoring backup...
+    if exist "{current_exe_path}.backup" (
+        move /y "{current_exe_path}.backup" "{current_exe_path}" >NUL 2>&1
+    )
     pause
     exit /b 1
 )
 
+:: Verify the copy by checking file size
+for %%A in ("{current_exe_path}") do set "newsize=%%~zA"
+if !newsize! LSS {max(new_exe_size - 1000, 1)} (
+    echo ERROR: Update file appears corrupted!
+    echo Restoring backup...
+    del /f /q "{current_exe_path}" >NUL 2>&1
+    if exist "{current_exe_path}.backup" (
+        move /y "{current_exe_path}.backup" "{current_exe_path}" >NUL 2>&1
+    )
+    pause
+    exit /b 1
+)
+
+echo Update installed successfully!
+
 :: Clean up backup
 del /f /q "{current_exe_path}.backup" >NUL 2>&1
 
-echo Update complete!
-echo Starting Warframe Relic Companion...
+:: Small delay before launching
+timeout /t 2 /nobreak >NUL
 
-:: Start the updated app
+echo Starting Warframe Relic Companion...
 start "" "{current_exe_path}"
 
-:: Clean up update files
-timeout /t 3 /nobreak >NUL
+:: Clean up update files after a delay
+timeout /t 5 /nobreak >NUL
 rmdir /s /q "{script_dir}" >NUL 2>&1
 
 exit
