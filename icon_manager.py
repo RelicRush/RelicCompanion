@@ -20,7 +20,8 @@ except ImportError:
 def get_icons_dir() -> str:
     """Get the icons directory path."""
     if getattr(sys, 'frozen', False):
-        base = os.path.dirname(sys.executable)
+        # When running as EXE, icons are bundled in _MEIPASS temp folder
+        base = getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
     else:
         base = os.path.dirname(os.path.abspath(__file__))
     
