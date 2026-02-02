@@ -8,7 +8,7 @@ from tkinter import ttk
 from PIL import Image
 from models import InventoryItem, RelicEra, RelicRefinement, RewardRarity
 from api import WFCDRelicDatabase
-from icon_manager import get_platinum_icon_path
+from icon_manager import get_platinum_icon_path, get_ducats_icon_path
 
 
 class InventoryTab:
@@ -24,9 +24,11 @@ class InventoryTab:
         self.inv_tree = None
         self.profit_toggle = None
         self.rad_toggle = None
+        self.ducats_toggle = None
         # Load saved filter preferences
         self.profit_enabled = app.settings.get('inv_profit_filter', False)
         self.rad_enabled = app.settings.get('inv_rad_filter', False)
+        self.ducats_enabled = app.settings.get('inv_ducats_filter', False)
         self.cascade_label = None
         self.wfcd_db = WFCDRelicDatabase()
         self._price_cache = {}  # Cache relic -> price lookups
@@ -65,21 +67,31 @@ class InventoryTab:
             except Exception:
                 pass
         
-        # Left plat icon
-        self.plat_icon_label = ctk.CTkLabel(stats_frame, text="", image=self.stats_plat_icon, width=14)
-        self.plat_icon_label.pack(side="left", padx=(0, 4))
-        self.plat_icon_label.pack_forget()  # Hide initially
+        # Ducat icon for ducat filter
+        self.stats_ducat_icon = None
+        ducat_icon_path = get_ducats_icon_path(14)
+        if ducat_icon_path and os.path.exists(ducat_icon_path):
+            try:
+                ducat_pil = Image.open(ducat_icon_path)
+                self.stats_ducat_icon = ctk.CTkImage(light_image=ducat_pil, dark_image=ducat_pil, size=(14, 14))
+            except Exception:
+                pass
         
-        # Golden label for shown/profitable relics
+        # Left icon (plat or ducat depending on filter)
+        self.filter_icon_label = ctk.CTkLabel(stats_frame, text="", image=self.stats_plat_icon, width=14)
+        self.filter_icon_label.pack(side="left", padx=(0, 4))
+        self.filter_icon_label.pack_forget()  # Hide initially
+        
+        # Label for shown/filtered relics (color changes based on filter)
         self.inv_shown_label = ctk.CTkLabel(stats_frame, text="",
                                            font=ctk.CTkFont(size=13, weight="bold"),
                                            text_color="#ffd700")
         self.inv_shown_label.pack(side="left")
         
-        # Right plat icon
-        self.plat_icon_label_right = ctk.CTkLabel(stats_frame, text="", image=self.stats_plat_icon, width=14)
-        self.plat_icon_label_right.pack(side="left", padx=(4, 0))
-        self.plat_icon_label_right.pack_forget()  # Hide initially
+        # Right icon (plat or ducat depending on filter)
+        self.filter_icon_label_right = ctk.CTkLabel(stats_frame, text="", image=self.stats_plat_icon, width=14)
+        self.filter_icon_label_right.pack(side="left", padx=(4, 0))
+        self.filter_icon_label_right.pack_forget()  # Hide initially
         
         # Regular label for total stats (also bold)
         self.inv_stats_label = ctk.CTkLabel(stats_frame, text="",
@@ -94,10 +106,10 @@ class InventoryTab:
         # Search
         self.inv_search = ctk.CTkEntry(
             filter_frame,
-            placeholder_text="🔍 Search relics...",
+            placeholder_text="🔍 Search relics, drops, refinement...",
             font=ctk.CTkFont(size=12),
             height=36,
-            width=200,
+            width=220,
             corner_radius=8,
             fg_color=self.COLORS['bg_secondary'],
             border_color=self.COLORS['border']
@@ -176,10 +188,27 @@ class InventoryTab:
             button_hover_color=self.COLORS['accent'],
             command=self.toggle_rad_filter
         )
-        self.rad_toggle.pack(side="left", padx=(0, 15))
+        self.rad_toggle.pack(side="left", padx=(0, 10))
         # Restore saved rad toggle state
         if self.rad_enabled:
             self.rad_toggle.select()
+        
+        # Ducats toggle - show relics worth less than 18p (good for ducat farming)
+        self.ducats_toggle = ctk.CTkSwitch(
+            filter_frame,
+            text="🪙 Ducats (<18p)",
+            font=ctk.CTkFont(size=12),
+            text_color=self.COLORS['text_secondary'],
+            fg_color=self.COLORS['bg_hover'],
+            progress_color="#fbbf24",
+            button_color=self.COLORS['text'],
+            button_hover_color=self.COLORS['accent'],
+            command=self.toggle_ducats_filter
+        )
+        self.ducats_toggle.pack(side="left", padx=(0, 15))
+        # Restore saved ducats toggle state
+        if self.ducats_enabled:
+            self.ducats_toggle.select()
         
         # Inventory list using Treeview for performance
         tree_frame = ctk.CTkFrame(frame, fg_color=self.COLORS['bg_secondary'], corner_radius=12)
@@ -354,17 +383,32 @@ class InventoryTab:
         self.app.settings['inv_sort'] = self.inv_sort.get() if self.inv_sort else 'Quantity ↓'
         self.app.settings['inv_profit_filter'] = self.profit_enabled
         self.app.settings['inv_rad_filter'] = self.rad_enabled
+        self.app.settings['inv_ducats_filter'] = self.ducats_enabled
         self.app.save_settings()
     
     def toggle_profit_filter(self):
         """Toggle the profit filter on/off."""
         self.profit_enabled = self.profit_toggle.get() == 1
+        # Disable ducats filter if profit is enabled (they're mutually exclusive)
+        if self.profit_enabled and self.ducats_enabled:
+            self.ducats_enabled = False
+            self.ducats_toggle.deselect()
         self.save_filter_preferences()
         self.refresh_inventory()
     
     def toggle_rad_filter(self):
         """Toggle the radiant filter on/off."""
         self.rad_enabled = self.rad_toggle.get() == 1
+        self.save_filter_preferences()
+        self.refresh_inventory()
+    
+    def toggle_ducats_filter(self):
+        """Toggle the ducats filter on/off (shows relics < 18p)."""
+        self.ducats_enabled = self.ducats_toggle.get() == 1
+        # Disable profit filter if ducats is enabled (they're mutually exclusive)
+        if self.ducats_enabled and self.profit_enabled:
+            self.profit_enabled = False
+            self.profit_toggle.deselect()
         self.save_filter_preferences()
         self.refresh_inventory()
     
@@ -455,20 +499,35 @@ class InventoryTab:
             
             # Search filter
             if search_query:
-                relic_name = f"{item.relic.era.value} {item.relic.name}".lower() if item.relic else ""
-                rare_drop = ""
-                if item.relic:
-                    rare_rewards = [r for r in item.relic.rewards if r.rarity == RewardRarity.RARE]
-                    if rare_rewards:
-                        rare_drop = rare_rewards[0].name.lower()
-                
-                if search_query not in relic_name and search_query not in rare_drop:
-                    continue
+                # Special shortcut: "upgrade" shows all non-Intact relics
+                if search_query == "upgrade" or search_query == "upgraded":
+                    if item.refinement.value == "Intact":
+                        continue
+                else:
+                    relic_name = f"{item.relic.era.value} {item.relic.name}".lower() if item.relic else ""
+                    
+                    # Get rare drop name from WFCD cache (most reliable source)
+                    rare_drop = ""
+                    if item.relic:
+                        relic_full = f"{item.relic.era.value} {item.relic.name}"
+                        rare_drop = self._relic_rare_cache.get(relic_full, "").lower()
+                    
+                    # Get refinement name
+                    refinement = item.refinement.value.lower() if item.refinement else ""
+                    
+                    if search_query not in relic_name and search_query not in rare_drop and search_query not in refinement:
+                        continue
             
             # Profit filter - only show relics with 20p+ gold parts
             if self.profit_enabled:
                 gold_price = self.get_relic_gold_price(item.relic)
                 if gold_price < 20:
+                    continue
+            
+            # Ducats filter - only show relics with gold parts worth less than 18p
+            if self.ducats_enabled:
+                gold_price = self.get_relic_gold_price(item.relic)
+                if gold_price >= 18:
                     continue
             
             filtered.append(item)
@@ -493,16 +552,30 @@ class InventoryTab:
         total_all = sum(item.quantity for item in self.app.inventory)
         
         if len(filtered) != len(self.app.inventory):
-            # Show plat icons and golden text for shown (profitable) relics
-            if self.stats_plat_icon:
-                self.plat_icon_label.pack(side="left", padx=(0, 4), before=self.inv_shown_label)
-                self.plat_icon_label_right.pack(side="left", padx=(4, 0), after=self.inv_shown_label)
-            self.inv_shown_label.configure(text=f"{len(filtered)} shown ({total_filtered} relics)")
+            # Determine which icon and color to use based on active filter
+            if self.ducats_enabled:
+                # Ducat filter active - use ducat icon and ducat gold color
+                active_icon = self.stats_ducat_icon
+                active_color = "#fbbf24"  # Matches ducat toggle color
+            else:
+                # Profit or other filter - use plat icon and bright gold
+                active_icon = self.stats_plat_icon
+                active_color = "#ffd700"  # Bright gold for plat
+            
+            # Update icon images
+            if active_icon:
+                self.filter_icon_label.configure(image=active_icon)
+                self.filter_icon_label_right.configure(image=active_icon)
+                self.filter_icon_label.pack(side="left", padx=(0, 4), before=self.inv_shown_label)
+                self.filter_icon_label_right.pack(side="left", padx=(4, 0), after=self.inv_shown_label)
+            
+            # Update text color to match
+            self.inv_shown_label.configure(text=f"{len(filtered)} shown ({total_filtered} relics)", text_color=active_color)
             self.inv_stats_label.configure(text=f" • {len(self.app.inventory)} total types ({total_all} relics)")
         else:
-            # Hide plat icons when showing all
-            self.plat_icon_label.pack_forget()
-            self.plat_icon_label_right.pack_forget()
+            # Hide icons when showing all
+            self.filter_icon_label.pack_forget()
+            self.filter_icon_label_right.pack_forget()
             self.inv_shown_label.configure(text="")
             self.inv_stats_label.configure(text=f"{len(self.app.inventory)} types • {total_all} relics")
         

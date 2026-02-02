@@ -198,6 +198,10 @@ class PricesTab:
         self.prices_tree.tag_configure('oddrow', background=self.prices_tree_odd_color)
         self.prices_tree.tag_configure('evenrow', background=self.prices_tree_even_color)
         
+        # Bind click event to copy relics
+        self.prices_tree.bind('<Double-1>', self.on_row_double_click)
+        self.prices_tree.bind('<Button-3>', self.on_row_right_click)  # Right-click
+        
         # Scrollbar
         scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=self.prices_tree.yview)
         self.prices_tree.configure(yscrollcommand=scrollbar.set)
@@ -425,3 +429,60 @@ class PricesTab:
     def filter_prices(self, event=None):
         """Filter prices table based on search."""
         self.refresh_prices_table()
+    
+    def on_row_double_click(self, event):
+        """Handle double-click on a row - copy relics to clipboard."""
+        self.copy_selected_relics()
+    
+    def on_row_right_click(self, event):
+        """Handle right-click on a row - copy relics to clipboard."""
+        # Select the row under cursor
+        item = self.prices_tree.identify_row(event.y)
+        if item:
+            self.prices_tree.selection_set(item)
+            self.copy_selected_relics()
+    
+    def copy_selected_relics(self):
+        """Copy selected row's relics as Warframe chat links."""
+        selection = self.prices_tree.selection()
+        if not selection:
+            return
+        
+        try:
+            # Get the values from selected row
+            values = self.prices_tree.item(selection[0], 'values')
+            if len(values) < 4:
+                return
+            
+            item_name = values[0]
+            relics_text = values[3]  # Source Relics column
+            
+            if not relics_text or relics_text == "-":
+                self.show_copy_feedback("No relics to copy")
+                return
+            
+            # Parse relics and format as Warframe chat links
+            # Input: "Axi A11, Axi A6, Lith V2"
+            # Output: "[Axi A11 Relic] [Axi A6 Relic] [Lith V2 Relic]"
+            relic_list = [r.strip() for r in relics_text.split(',')]
+            chat_links = ' '.join(f'[{relic} Relic]' for relic in relic_list)
+            
+            # Copy to clipboard
+            self.app.clipboard_clear()
+            self.app.clipboard_append(chat_links)
+            self.app.update()  # Required for clipboard to persist
+            
+            # Show feedback
+            self.show_copy_feedback(f"Copied {len(relic_list)} relic links!")
+            
+        except Exception as e:
+            print(f"Error copying relics: {e}")
+            self.show_copy_feedback("Error copying")
+    
+    def show_copy_feedback(self, message: str):
+        """Show temporary feedback message in the status label."""
+        original_text = self.sync_status.cget("text")
+        self.sync_status.configure(text=f"📋 {message}")
+        
+        # Restore original text after 2 seconds
+        self.app.after(2000, lambda: self.sync_status.configure(text=original_text))
