@@ -25,7 +25,7 @@ except ImportError:
 
 
 # Current version - increment this with each release
-__version__ = "1.1.1"
+__version__ = "1.1.2"
 
 # GitHub repository info
 GITHUB_OWNER = "RelicRush"
@@ -367,6 +367,7 @@ def create_update_script(new_exe_path: str, current_exe_path: str) -> str:
         Path to the batch script
     """
     script_dir = os.path.join(tempfile.gettempdir(), "wfrc_update")
+    os.makedirs(script_dir, exist_ok=True)
     script_path = os.path.join(script_dir, "update.bat")
     
     exe_name = os.path.basename(current_exe_path)
@@ -457,15 +458,13 @@ def apply_exe_update(new_exe_path: str) -> tuple[bool, str]:
         if not os.path.exists(script_path):
             return False, "Failed to create update script"
         
-        # Launch the script (hidden window)
-        startupinfo = subprocess.STARTUPINFO()
-        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-        startupinfo.wShowWindow = subprocess.SW_HIDE
-        
+        # Launch the script detached from this process
+        # Use CREATE_NO_WINDOW to hide the console, and DETACHED_PROCESS so it survives app exit
         subprocess.Popen(
-            ['cmd', '/c', script_path],
-            startupinfo=startupinfo,
-            creationflags=subprocess.CREATE_NEW_CONSOLE | subprocess.DETACHED_PROCESS
+            f'cmd /c "{script_path}"',
+            shell=True,
+            creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS,
+            close_fds=True
         )
         
         return True, ""
