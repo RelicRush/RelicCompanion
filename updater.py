@@ -25,7 +25,7 @@ except ImportError:
 
 
 # Current version - increment this with each release
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 # GitHub repository info
 GITHUB_OWNER = "RelicRush"
@@ -429,7 +429,7 @@ exit
     return script_path
 
 
-def apply_exe_update(new_exe_path: str) -> bool:
+def apply_exe_update(new_exe_path: str) -> tuple[bool, str]:
     """
     Apply an EXE update by creating an update script and launching it.
     The script will replace the EXE after the app closes.
@@ -438,20 +438,24 @@ def apply_exe_update(new_exe_path: str) -> bool:
         new_exe_path: Path to the downloaded new EXE
         
     Returns:
-        True if the update script was launched successfully
+        Tuple of (success, error_message)
     """
     if not is_frozen():
-        print("Auto-update only works for compiled EXE versions")
-        return False
+        return False, "Auto-update only works for compiled EXE versions"
     
     current_exe = get_exe_path()
     if not current_exe:
-        print("Could not determine current EXE path")
-        return False
+        return False, "Could not determine current EXE path"
+    
+    if not os.path.exists(new_exe_path):
+        return False, f"Downloaded EXE not found: {new_exe_path}"
     
     try:
         # Create the update script
         script_path = create_update_script(new_exe_path, current_exe)
+        
+        if not os.path.exists(script_path):
+            return False, "Failed to create update script"
         
         # Launch the script (hidden window)
         startupinfo = subprocess.STARTUPINFO()
@@ -464,11 +468,10 @@ def apply_exe_update(new_exe_path: str) -> bool:
             creationflags=subprocess.CREATE_NEW_CONSOLE | subprocess.DETACHED_PROCESS
         )
         
-        return True
+        return True, ""
         
     except Exception as e:
-        print(f"Failed to launch update script: {e}")
-        return False
+        return False, f"Failed to launch update script: {e}"
 
 
 def download_and_apply_update(update_info: UpdateInfo, 
@@ -518,12 +521,13 @@ def download_and_apply_update(update_info: UpdateInfo,
                     progress_callback("Preparing update...", 100, 100)
                 
                 # Apply the update
-                if apply_exe_update(new_exe):
+                success, error_msg = apply_exe_update(new_exe)
+                if success:
                     if complete_callback:
                         complete_callback(True, "Update ready! The app will now close and update.")
                 else:
                     if complete_callback:
-                        complete_callback(False, "Failed to prepare update")
+                        complete_callback(False, f"Failed to prepare update: {error_msg}")
             else:
                 # For non-EXE versions, just open the download page
                 import webbrowser
