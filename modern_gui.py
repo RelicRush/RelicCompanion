@@ -50,6 +50,16 @@ class ModernRelicApp(ctk.CTk):
         'border': '#2a2a2a',
     }
     
+    # Fun custom titles for specific users (case-insensitive)
+    CUSTOM_TITLES = {
+        'itsveilor': ('👑 The Creator', '#ffd700'),
+        'relichunter': ('🎯 Relic God', '#8b5cf6'),
+        'barohunter': ('🪙 Ducat Daddy', '#fbbf24'),
+        'formafarm': ('⚡ Forma Fiend', '#60a5fa'),
+        'primepapi': ('💎 Prime Papi', '#22c55e'),
+        # Add more custom titles here!
+    }
+    
     def __init__(self):
         super().__init__()
         
@@ -234,10 +244,21 @@ class ModernRelicApp(ctk.CTk):
         name_frame = ctk.CTkFrame(profile_header, fg_color="transparent")
         name_frame.pack(side="left", padx=(10, 0), fill="x", expand=True)
         
-        self.username_label = ctk.CTkLabel(name_frame, text="Not synced",
+        # Username row (name + title)
+        username_row = ctk.CTkFrame(name_frame, fg_color="transparent")
+        username_row.pack(anchor="w")
+        
+        self.username_label = ctk.CTkLabel(username_row, text="Not synced",
                                            font=ctk.CTkFont(size=12, weight="bold"),
                                            text_color=self.COLORS['text'])
-        self.username_label.pack(anchor="w")
+        self.username_label.pack(side="left")
+        
+        # Custom title label (hidden by default)
+        self.title_label = ctk.CTkLabel(username_row, text="",
+                                        font=ctk.CTkFont(size=10),
+                                        text_color=self.COLORS['gold'])
+        self.title_label.pack(side="left", padx=(6, 0))
+        self.title_label.pack_forget()  # Hide until we have a title
         
         # Stats row with icons
         stats_frame = ctk.CTkFrame(self.profile_frame, fg_color="transparent")
@@ -459,9 +480,18 @@ class ModernRelicApp(ctk.CTk):
                 print(f"Error loading MR icon: {e}")
                 self.mr_image_label.configure(text=str(profile.mastery_rank))
             
-            # Update username
+            # Update username and custom title
             if profile.username:
                 self.username_label.configure(text=profile.username)
+                
+                # Check for custom title
+                username_lower = profile.username.lower()
+                if username_lower in self.CUSTOM_TITLES:
+                    title_text, title_color = self.CUSTOM_TITLES[username_lower]
+                    self.title_label.configure(text=title_text, text_color=title_color)
+                    self.title_label.pack(side="left", padx=(6, 0))
+                else:
+                    self.title_label.pack_forget()
             
             # Update stat labels (now using icon images instead of emojis)
             self.stat_labels['plat'].configure(text=f"{profile.platinum:,}")
