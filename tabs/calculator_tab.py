@@ -143,7 +143,7 @@ class CalculatorTab:
             font=ctk.CTkFont(size=18, weight="bold"),
             text_color=self.COLORS['text']
         )
-        header.pack(row=0, column=0, sticky="w", padx=15, pady=(15, 20))
+        header.pack(anchor="w", padx=15, pady=(15, 20))
         
         # Get refinement enum
         ref_map = {

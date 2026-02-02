@@ -159,56 +159,59 @@ class InventoryTab:
         self.inv_sort.set(self.app.settings.get('inv_sort', 'Quantity ↓'))
         self.inv_sort.pack(side="left", padx=(0, 15))
         
-        # Profit Relics toggle
-        self.profit_toggle = ctk.CTkSwitch(
+        # Profit Relics checkbox
+        self.profit_toggle = ctk.CTkCheckBox(
             filter_frame,
             text="💰 Profit (20p+)",
             font=ctk.CTkFont(size=12),
-            text_color=self.COLORS['text_secondary'],
-            fg_color=self.COLORS['bg_hover'],
-            progress_color=self.COLORS['success'],
-            button_color=self.COLORS['text'],
-            button_hover_color=self.COLORS['accent'],
+            text_color=self.COLORS['text_muted'],
+            fg_color=self.COLORS['success'],
+            hover_color=self.COLORS['success'],
+            border_color=self.COLORS['text_muted'],
+            checkmark_color=self.COLORS['bg_primary'],
             command=self.toggle_profit_filter
         )
         self.profit_toggle.pack(side="left", padx=(10, 10))
         # Restore saved profit toggle state
         if self.profit_enabled:
             self.profit_toggle.select()
+            self.profit_toggle.configure(text_color=self.COLORS['success'])
         
-        # Rad toggle
-        self.rad_toggle = ctk.CTkSwitch(
+        # Rad checkbox
+        self.rad_toggle = ctk.CTkCheckBox(
             filter_frame,
             text="✨ Radiant",
             font=ctk.CTkFont(size=12),
-            text_color=self.COLORS['text_secondary'],
-            fg_color=self.COLORS['bg_hover'],
-            progress_color="#ff9800",
-            button_color=self.COLORS['text'],
-            button_hover_color=self.COLORS['accent'],
+            text_color=self.COLORS['text_muted'],
+            fg_color="#ff9800",
+            hover_color="#ff9800",
+            border_color=self.COLORS['text_muted'],
+            checkmark_color=self.COLORS['bg_primary'],
             command=self.toggle_rad_filter
         )
         self.rad_toggle.pack(side="left", padx=(0, 10))
         # Restore saved rad toggle state
         if self.rad_enabled:
             self.rad_toggle.select()
+            self.rad_toggle.configure(text_color="#ff9800")
         
-        # Ducats toggle - show relics worth less than 18p (good for ducat farming)
-        self.ducats_toggle = ctk.CTkSwitch(
+        # Ducats checkbox - show relics worth less than 18p (good for ducat farming)
+        self.ducats_toggle = ctk.CTkCheckBox(
             filter_frame,
             text="🪙 Ducats (<18p)",
             font=ctk.CTkFont(size=12),
-            text_color=self.COLORS['text_secondary'],
-            fg_color=self.COLORS['bg_hover'],
-            progress_color="#fbbf24",
-            button_color=self.COLORS['text'],
-            button_hover_color=self.COLORS['accent'],
+            text_color=self.COLORS['text_muted'],
+            fg_color="#fbbf24",
+            hover_color="#fbbf24",
+            border_color=self.COLORS['text_muted'],
+            checkmark_color=self.COLORS['bg_primary'],
             command=self.toggle_ducats_filter
         )
         self.ducats_toggle.pack(side="left", padx=(0, 15))
         # Restore saved ducats toggle state
         if self.ducats_enabled:
             self.ducats_toggle.select()
+            self.ducats_toggle.configure(text_color="#fbbf24")
         
         # Inventory list using Treeview for performance
         tree_frame = ctk.CTkFrame(frame, fg_color=self.COLORS['bg_secondary'], corner_radius=12)
@@ -288,8 +291,8 @@ class InventoryTab:
         self.cascade_label = ctk.CTkLabel(
             cascade_frame,
             text="⚡ Void Cascade: 0 runs (0 Radiant)",
-            font=ctk.CTkFont(size=12),
-            text_color=self.COLORS['text_muted']
+            font=ctk.CTkFont(size=13, weight="bold"),
+            text_color="#00ffa0"  # Void Cascade green
         )
         self.cascade_label.pack(padx=12, pady=8)
         
@@ -389,26 +392,43 @@ class InventoryTab:
     def toggle_profit_filter(self):
         """Toggle the profit filter on/off."""
         self.profit_enabled = self.profit_toggle.get() == 1
+        # Update text color based on state
+        if self.profit_enabled:
+            self.profit_toggle.configure(text_color=self.COLORS['success'])
+        else:
+            self.profit_toggle.configure(text_color=self.COLORS['text_muted'])
         # Disable ducats filter if profit is enabled (they're mutually exclusive)
         if self.profit_enabled and self.ducats_enabled:
             self.ducats_enabled = False
             self.ducats_toggle.deselect()
+            self.ducats_toggle.configure(text_color=self.COLORS['text_muted'])
         self.save_filter_preferences()
         self.refresh_inventory()
     
     def toggle_rad_filter(self):
         """Toggle the radiant filter on/off."""
         self.rad_enabled = self.rad_toggle.get() == 1
+        # Update text color based on state
+        if self.rad_enabled:
+            self.rad_toggle.configure(text_color="#ff9800")
+        else:
+            self.rad_toggle.configure(text_color=self.COLORS['text_muted'])
         self.save_filter_preferences()
         self.refresh_inventory()
     
     def toggle_ducats_filter(self):
         """Toggle the ducats filter on/off (shows relics < 18p)."""
         self.ducats_enabled = self.ducats_toggle.get() == 1
+        # Update text color based on state
+        if self.ducats_enabled:
+            self.ducats_toggle.configure(text_color="#fbbf24")
+        else:
+            self.ducats_toggle.configure(text_color=self.COLORS['text_muted'])
         # Disable profit filter if ducats is enabled (they're mutually exclusive)
         if self.ducats_enabled and self.profit_enabled:
             self.profit_enabled = False
             self.profit_toggle.deselect()
+            self.profit_toggle.configure(text_color=self.COLORS['text_muted'])
         self.save_filter_preferences()
         self.refresh_inventory()
     

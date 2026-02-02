@@ -25,7 +25,7 @@ except ImportError:
 
 
 # Current version - increment this with each release
-__version__ = "1.1.4"
+__version__ = "1.1.5"
 
 # GitHub repository info
 GITHUB_OWNER = "RelicRush"
