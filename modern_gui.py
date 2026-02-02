@@ -52,7 +52,7 @@ class ModernRelicApp(ctk.CTk):
     
     # Fun custom titles for specific users (case-insensitive)
     CUSTOM_TITLES = {
-        'itsveilor': ('ItsSmella', '#ffd700'),
+        'itsveilor': ('The Alpha Lovre', '#ffd700'),
         'relichunter': ('🎯 Relic God', '#8b5cf6'),
         'barohunter': ('🪙 Ducat Daddy', '#fbbf24'),
         'formafarm': ('⚡ Forma Fiend', '#60a5fa'),
