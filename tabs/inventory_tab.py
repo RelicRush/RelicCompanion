@@ -458,6 +458,11 @@ class InventoryTab:
                 inv_item.relic.name == name and
                 inv_item.refinement.value == ref):
                 inv_item.quantity += delta
+                
+                # Log to history
+                action = 'added' if delta > 0 else 'removed'
+                self.app.db.log_relic_action(action, era, name, ref, abs(delta))
+                
                 if inv_item.quantity <= 0:
                     self.app.inventory.remove(inv_item)
                 break
@@ -481,6 +486,8 @@ class InventoryTab:
                 inv_item.relic.era.value == era and 
                 inv_item.relic.name == name and
                 inv_item.refinement.value == ref):
+                # Log to history before removing
+                self.app.db.log_relic_action('removed', era, name, ref, inv_item.quantity)
                 self.app.inventory.remove(inv_item)
                 break
         

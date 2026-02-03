@@ -143,11 +143,27 @@ class RelicDatabase:
             )
         ''')
         
+        # Relic history table for tracking all inventory changes
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS relic_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                action TEXT NOT NULL,
+                relic_era TEXT NOT NULL,
+                relic_name TEXT NOT NULL,
+                refinement TEXT NOT NULL,
+                quantity INTEGER NOT NULL,
+                platinum_value REAL DEFAULT 0,
+                notes TEXT
+            )
+        ''')
+        
         # Create indexes for faster lookups
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_relics_era ON relics(era)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_relics_name ON relics(name)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_rewards_relic ON rewards(relic_id)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_inventory_relic ON inventory(relic_id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_history_timestamp ON relic_history(timestamp)')
         
         self.conn.commit()
     
@@ -584,4 +600,84 @@ class RelicDatabase:
         """Delete a run from history."""
         cursor = self.conn.cursor()
         cursor.execute('DELETE FROM run_history WHERE id = ?', (run_id,))
+        self.conn.commit()
+
+    # ==================== Relic History Operations ====================
+    
+    def log_relic_action(self, action: str, era: str, name: str, refinement: str, 
+                         quantity: int, platinum_value: float = 0, notes: str = ""):
+        """
+        Log a relic inventory action to history.
+        
+        Actions: 'added', 'removed', 'opened', 'sold', 'traded'
+        """
+        cursor = self.conn.cursor()
+        cursor.execute('''
+            INSERT INTO relic_history (action, relic_era, relic_name, refinement, quantity, platinum_value, notes)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (action, era, name, refinement, quantity, platinum_value, notes))
+        self.conn.commit()
+    
+    def get_relic_history(self, limit: int = 100, action_filter: str = None) -> list[dict]:
+        """Get relic history, newest first. Optionally filter by action type."""
+        cursor = self.conn.cursor()
+        
+        if action_filter:
+            cursor.execute('''
+                SELECT * FROM relic_history WHERE action = ? ORDER BY timestamp DESC LIMIT ?
+            ''', (action_filter, limit))
+        else:
+            cursor.execute('''
+                SELECT * FROM relic_history ORDER BY timestamp DESC LIMIT ?
+            ''', (limit,))
+        
+        history = []
+        for row in cursor.fetchall():
+            history.append({
+                'id': row['id'],
+                'timestamp': row['timestamp'],
+                'action': row['action'],
+                'era': row['relic_era'],
+                'name': row['relic_name'],
+                'refinement': row['refinement'],
+                'quantity': row['quantity'],
+                'platinum_value': row['platinum_value'],
+                'notes': row['notes']
+            })
+        return history
+    
+    def get_history_stats(self) -> dict:
+        """Get summary statistics from relic history."""
+        cursor = self.conn.cursor()
+        
+        # Total added
+        cursor.execute("SELECT COALESCE(SUM(quantity), 0) FROM relic_history WHERE action = 'added'")
+        total_added = cursor.fetchone()[0]
+        
+        # Total removed
+        cursor.execute("SELECT COALESCE(SUM(quantity), 0) FROM relic_history WHERE action = 'removed'")
+        total_removed = cursor.fetchone()[0]
+        
+        # Total sold
+        cursor.execute("SELECT COALESCE(SUM(quantity), 0), COALESCE(SUM(platinum_value), 0) FROM relic_history WHERE action = 'sold'")
+        row = cursor.fetchone()
+        total_sold = row[0]
+        total_plat_earned = row[1]
+        
+        # Total opened
+        cursor.execute("SELECT COALESCE(SUM(quantity), 0) FROM relic_history WHERE action = 'opened'")
+        total_opened = cursor.fetchone()[0]
+        
+        return {
+            'total_added': total_added,
+            'total_removed': total_removed,
+            'total_sold': total_sold,
+            'total_opened': total_opened,
+            'total_plat_earned': total_plat_earned
+        }
+    
+    def clear_relic_history(self):
+        """Clear all relic history."""
+        cursor = self.conn.cursor()
+        cursor.execute('DELETE FROM relic_history')
         self.conn.commit()

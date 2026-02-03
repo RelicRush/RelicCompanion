@@ -21,7 +21,7 @@ from database import RelicDatabase, get_db_dir
 from icon_manager import get_mastery_icon_path, get_platinum_icon_path, get_credits_icon_path, get_ducats_icon_path
 
 # Import tab modules
-from tabs import PricesTab, CalculatorTab, InventoryTab, VoidCascadeTab
+from tabs import PricesTab, CalculatorTab, InventoryTab, VoidCascadeTab, HistoryTab
 
 # Set appearance mode and default color theme
 ctk.set_appearance_mode("dark")
@@ -52,8 +52,8 @@ class ModernRelicApp(ctk.CTk):
     
     # Fun custom titles for specific users (case-insensitive)
     CUSTOM_TITLES = {
-        'itsveilor': ('Twitch.tv/ItsVeilor', '#ffd700'),
-        'weeyins': ('The Creator', '#8b5cf6'),
+        'itsveilor': ('twitch.tv/ItsVeilor', "#9146FF"),
+        'weeyins': ('The Creator', "#bda000"),
         'barohunter': ('🪙 Ducat Daddy', '#fbbf24'),
         'formafarm': ('⚡ Forma Fiend', '#60a5fa'),
         'primepapi': ('💎 Prime Papi', '#22c55e'),
@@ -100,6 +100,7 @@ class ModernRelicApp(ctk.CTk):
         self.calculator_tab = CalculatorTab(self)
         self.inventory_tab = InventoryTab(self)
         self.cascade_tab = VoidCascadeTab(self)
+        self.history_tab = HistoryTab(self)
         
         # Build UI
         self.create_layout()
@@ -208,29 +209,45 @@ class ModernRelicApp(ctk.CTk):
         sidebar.grid(row=0, column=0, sticky="nsew")
         sidebar.grid_rowconfigure(10, weight=1)  # Push bottom items down
         
-        # Logo/Title section (row 0)
+        # Logo/Title section (row 0) - Orokin inspired
         logo_frame = ctk.CTkFrame(sidebar, fg_color="transparent")
-        logo_frame.grid(row=0, column=0, padx=20, pady=(25, 15), sticky="ew")
+        logo_frame.grid(row=0, column=0, padx=12, pady=(25, 15), sticky="ew")
         
-        # Accent bar
-        accent = ctk.CTkFrame(logo_frame, width=4, height=32, 
-                             fg_color=self.COLORS['accent'], corner_radius=2)
-        accent.pack(side="left", padx=(0, 12))
+        # Inner frame for centering
+        logo_inner = ctk.CTkFrame(logo_frame, fg_color="transparent")
+        logo_inner.pack(anchor="center")
         
-        title_label0 = ctk.CTkLabel(logo_frame, text="THE", 
-                                  font=ctk.CTkFont(family="Segoe UI", size=14, weight="bold"),
-                                  text_color=self.COLORS['text_muted'])
+        # Orokin colors
+        orokin_gold = "#d4af37"
+        orokin_light = "#f5e6c8"
+        orokin_white = "#ffffff"
+        
+        # Left ornament
+        left_ornament = ctk.CTkLabel(logo_inner, text="⟨",
+                                     font=ctk.CTkFont(size=20),
+                                     text_color=orokin_gold)
+        left_ornament.pack(side="left", padx=(0, 4))
+        
+        title_label0 = ctk.CTkLabel(logo_inner, text="THE", 
+                                  font=ctk.CTkFont(family="Segoe UI", size=12, weight="normal"),
+                                  text_color=orokin_light)
         title_label0.pack(side="left")
         
-        title_label = ctk.CTkLabel(logo_frame, text="RELIC", 
-                                  font=ctk.CTkFont(family="Segoe UI", size=20, weight="bold"),
-                                  text_color=self.COLORS['text'])
-        title_label.pack(side="left", padx=(6, 0))
+        title_label = ctk.CTkLabel(logo_inner, text="RELIC", 
+                                  font=ctk.CTkFont(family="Segoe UI", size=18, weight="bold"),
+                                  text_color=orokin_white)
+        title_label.pack(side="left", padx=(5, 0))
         
-        title_label2 = ctk.CTkLabel(logo_frame, text="VAULT", 
-                                   font=ctk.CTkFont(family="Segoe UI", size=20, weight="bold"),
-                                   text_color=self.COLORS['accent'])
-        title_label2.pack(side="left", padx=(6, 0))
+        title_label2 = ctk.CTkLabel(logo_inner, text="VAULT", 
+                                   font=ctk.CTkFont(family="Segoe UI", size=18, weight="bold"),
+                                   text_color=orokin_gold)
+        title_label2.pack(side="left", padx=(5, 0))
+        
+        # Right ornament
+        right_ornament = ctk.CTkLabel(logo_inner, text="⟩",
+                                      font=ctk.CTkFont(size=20),
+                                      text_color=orokin_gold)
+        right_ornament.pack(side="left", padx=(4, 0))
         
         # Profile section at top (row 1) - shows after sync
         self.profile_frame = ctk.CTkFrame(sidebar, fg_color=self.COLORS['bg_card'], corner_radius=10)
@@ -347,6 +364,7 @@ class ModernRelicApp(ctk.CTk):
             ("📊", "Calculator", "calculator"),
             ("🎒", "Inventory", "inventory"),
             ("⚡", "Void Cascade", "cascade"),
+            ("📜", "History", "history"),
         ]
         
         self.nav_buttons = {}
@@ -443,6 +461,7 @@ class ModernRelicApp(ctk.CTk):
         self.frames["calculator"] = self.calculator_tab.create_frame(self.main_frame)
         self.frames["inventory"] = self.inventory_tab.create_frame(self.main_frame)
         self.frames["cascade"] = self.cascade_tab.create_frame(self.main_frame)
+        self.frames["history"] = self.history_tab.create_frame(self.main_frame)
     
     def refresh_inventory(self):
         """Refresh the inventory display (delegate to tab)."""
