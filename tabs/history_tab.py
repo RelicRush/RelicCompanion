@@ -1,25 +1,25 @@
 """
 History Tab for The Relic Vault.
-Shows a log of all relic inventory changes and Void Cascade runs.
+Shows Void Cascade run history.
 """
 
 import customtkinter as ctk
 from tkinter import ttk
+import tkinter as tk
 from datetime import datetime
 from database import RelicDatabase
 
 
 class HistoryTab:
-    """History tracker - view inventory changes and Void Cascade runs."""
+    """History tracker - view Void Cascade runs."""
     
     def __init__(self, app):
         self.app = app
         self.COLORS = app.COLORS
         self.db = RelicDatabase()
-        self.history_tree = None
-        self.filter_var = None
-        self.current_section = "relics"  # "relics" or "cascade"
+        self.runs_detail_tree = None
         self.selected_run = None
+        self._drops_style_configured = False
     
     def create_frame(self, parent) -> ctk.CTkFrame:
         """Create the history tab frame."""
@@ -27,280 +27,12 @@ class HistoryTab:
         frame.grid_columnconfigure(0, weight=1)
         frame.grid_rowconfigure(1, weight=1)
         
-        # Header with section toggle
+        # Header
         self._create_header(frame)
         
-        # Content area (switches between relic history and cascade runs)
+        # Content area - Void Cascade runs
         self.content_frame = ctk.CTkFrame(frame, fg_color="transparent")
         self.content_frame.grid(row=1, column=0, sticky="nsew", padx=20, pady=(0, 20))
-        self.content_frame.grid_columnconfigure(0, weight=1)
-        self.content_frame.grid_rowconfigure(0, weight=1)
-        
-        # Show relic history by default
-        self._show_relic_history()
-        
-        return frame
-    
-    def _create_header(self, parent):
-        """Create the header with section toggle."""
-        header = ctk.CTkFrame(parent, fg_color=self.COLORS['bg_secondary'], corner_radius=12)
-        header.grid(row=0, column=0, sticky="ew", padx=20, pady=(20, 10))
-        header.grid_columnconfigure(1, weight=1)
-        
-        # Title
-        title = ctk.CTkLabel(
-            header,
-            text="📜 History",
-            font=ctk.CTkFont(size=20, weight="bold"),
-            text_color=self.COLORS['text']
-        )
-        title.grid(row=0, column=0, padx=20, pady=15, sticky="w")
-        
-        # Section toggle buttons
-        toggle_frame = ctk.CTkFrame(header, fg_color="transparent")
-        toggle_frame.grid(row=0, column=1, padx=20, pady=15)
-        
-        self.relic_btn = ctk.CTkButton(
-            toggle_frame,
-            text="🎒 Relic Changes",
-            font=ctk.CTkFont(size=12, weight="bold"),
-            fg_color=self.COLORS['accent'],
-            hover_color=self.COLORS['accent_hover'],
-            width=140,
-            height=32,
-            command=self._show_relic_history
-        )
-        self.relic_btn.pack(side="left", padx=(0, 5))
-        
-        self.cascade_btn = ctk.CTkButton(
-            toggle_frame,
-            text="⚡ Void Cascade Runs",
-            font=ctk.CTkFont(size=12),
-            fg_color=self.COLORS['bg_card'],
-            hover_color=self.COLORS['bg_hover'],
-            text_color=self.COLORS['text_secondary'],
-            width=160,
-            height=32,
-            command=self._show_cascade_runs
-        )
-        self.cascade_btn.pack(side="left")
-    
-    def _update_toggle_buttons(self):
-        """Update toggle button appearance based on current section."""
-        if self.current_section == "relics":
-            self.relic_btn.configure(
-                fg_color=self.COLORS['accent'],
-                text_color=self.COLORS['text'],
-                font=ctk.CTkFont(size=12, weight="bold")
-            )
-            self.cascade_btn.configure(
-                fg_color=self.COLORS['bg_card'],
-                text_color=self.COLORS['text_secondary'],
-                font=ctk.CTkFont(size=12)
-            )
-        else:
-            self.cascade_btn.configure(
-                fg_color=self.COLORS['accent'],
-                text_color=self.COLORS['text'],
-                font=ctk.CTkFont(size=12, weight="bold")
-            )
-            self.relic_btn.configure(
-                fg_color=self.COLORS['bg_card'],
-                text_color=self.COLORS['text_secondary'],
-                font=ctk.CTkFont(size=12)
-            )
-    
-    def _clear_content(self):
-        """Clear the content frame."""
-        for widget in self.content_frame.winfo_children():
-            widget.destroy()
-    
-    # ==================== RELIC HISTORY SECTION ====================
-    
-    def _show_relic_history(self):
-        """Show the relic inventory history section."""
-        self.current_section = "relics"
-        self._update_toggle_buttons()
-        self._clear_content()
-        
-        # Filter bar
-        filter_frame = ctk.CTkFrame(self.content_frame, fg_color=self.COLORS['bg_secondary'], corner_radius=8)
-        filter_frame.grid(row=0, column=0, sticky="ew", pady=(0, 10))
-        
-        filter_label = ctk.CTkLabel(
-            filter_frame,
-            text="Filter:",
-            font=ctk.CTkFont(size=12),
-            text_color=self.COLORS['text_secondary']
-        )
-        filter_label.pack(side="left", padx=(15, 10), pady=10)
-        
-        self.filter_var = ctk.StringVar(value="All")
-        filter_dropdown = ctk.CTkOptionMenu(
-            filter_frame,
-            values=["All", "Added", "Removed", "Sold", "Opened"],
-            variable=self.filter_var,
-            font=ctk.CTkFont(size=12),
-            dropdown_font=ctk.CTkFont(size=12),
-            fg_color=self.COLORS['bg_card'],
-            button_color=self.COLORS['bg_hover'],
-            button_hover_color=self.COLORS['accent'],
-            dropdown_fg_color=self.COLORS['bg_card'],
-            dropdown_hover_color=self.COLORS['bg_hover'],
-            command=lambda _: self.refresh_history()
-        )
-        filter_dropdown.pack(side="left")
-        
-        # Stats label
-        self.stats_label = ctk.CTkLabel(
-            filter_frame,
-            text="",
-            font=ctk.CTkFont(size=11),
-            text_color=self.COLORS['text_muted']
-        )
-        self.stats_label.pack(side="left", padx=20)
-        
-        # Clear button
-        clear_btn = ctk.CTkButton(
-            filter_frame,
-            text="🗑️ Clear",
-            font=ctk.CTkFont(size=11),
-            fg_color=self.COLORS['bg_card'],
-            hover_color=self.COLORS['error'],
-            text_color=self.COLORS['text_secondary'],
-            width=70,
-            height=28,
-            command=self.clear_history
-        )
-        clear_btn.pack(side="right", padx=15, pady=10)
-        
-        # History list
-        self._create_relic_history_list()
-        self.refresh_history()
-    
-    def _create_relic_history_list(self):
-        """Create the relic history treeview."""
-        tree_frame = ctk.CTkFrame(self.content_frame, fg_color=self.COLORS['bg_secondary'], corner_radius=12)
-        tree_frame.grid(row=1, column=0, sticky="nsew")
-        tree_frame.grid_columnconfigure(0, weight=1)
-        tree_frame.grid_rowconfigure(0, weight=1)
-        self.content_frame.grid_rowconfigure(1, weight=1)
-        
-        # Style the treeview
-        style = ttk.Style()
-        style.theme_use('clam')
-        
-        style.configure("History.Treeview",
-                       background="#232329",
-                       foreground=self.COLORS['text'],
-                       fieldbackground="#232329",
-                       borderwidth=0,
-                       rowheight=32,
-                       font=('Segoe UI', 11))
-        
-        style.configure("History.Treeview.Heading",
-                       background=self.COLORS['bg_card'],
-                       foreground=self.COLORS['text'],
-                       borderwidth=0,
-                       font=('Segoe UI', 11, 'bold'))
-        
-        style.map("History.Treeview",
-                 background=[('selected', self.COLORS['accent'])],
-                 foreground=[('selected', '#ffffff')])
-        
-        columns = ("timestamp", "action", "relic", "refinement", "qty", "plat")
-        self.history_tree = ttk.Treeview(
-            tree_frame,
-            columns=columns,
-            show="headings",
-            style="History.Treeview",
-            selectmode="browse"
-        )
-        
-        self.history_tree.heading("timestamp", text="Time")
-        self.history_tree.heading("action", text="Action")
-        self.history_tree.heading("relic", text="Relic")
-        self.history_tree.heading("refinement", text="Refinement")
-        self.history_tree.heading("qty", text="Qty")
-        self.history_tree.heading("plat", text="Plat")
-        
-        self.history_tree.column("timestamp", width=150, minwidth=120)
-        self.history_tree.column("action", width=80, minwidth=60)
-        self.history_tree.column("relic", width=200, minwidth=150)
-        self.history_tree.column("refinement", width=100, minwidth=80)
-        self.history_tree.column("qty", width=60, minwidth=40)
-        self.history_tree.column("plat", width=80, minwidth=60)
-        
-        scrollbar = ttk.Scrollbar(tree_frame, orient="vertical", command=self.history_tree.yview)
-        self.history_tree.configure(yscrollcommand=scrollbar.set)
-        
-        self.history_tree.grid(row=0, column=0, sticky="nsew", padx=(15, 0), pady=15)
-        scrollbar.grid(row=0, column=1, sticky="ns", pady=15, padx=(0, 15))
-        
-        self.history_tree.tag_configure('added', foreground='#22c55e')
-        self.history_tree.tag_configure('removed', foreground='#ef4444')
-        self.history_tree.tag_configure('sold', foreground='#60a5fa')
-        self.history_tree.tag_configure('opened', foreground='#fbbf24')
-    
-    def refresh_history(self):
-        """Refresh the relic history display."""
-        if not self.history_tree:
-            return
-        
-        for item in self.history_tree.get_children():
-            self.history_tree.delete(item)
-        
-        filter_value = self.filter_var.get() if self.filter_var else "All"
-        action_filter = filter_value.lower() if filter_value != "All" else None
-        
-        history = self.app.db.get_relic_history(limit=500, action_filter=action_filter)
-        
-        for entry in history:
-            try:
-                ts = datetime.fromisoformat(entry['timestamp'])
-                time_str = ts.strftime("%Y-%m-%d %H:%M")
-            except:
-                time_str = entry['timestamp'][:16] if entry['timestamp'] else "Unknown"
-            
-            relic_str = f"{entry['era']} {entry['name']}"
-            plat_str = f"{entry['platinum_value']:.0f}p" if entry['platinum_value'] > 0 else ""
-            action_display = entry['action'].capitalize()
-            
-            self.history_tree.insert(
-                "", "end",
-                values=(time_str, action_display, relic_str, entry['refinement'], 
-                        entry['quantity'], plat_str),
-                tags=(entry['action'],)
-            )
-        
-        self._update_stats()
-    
-    def _update_stats(self):
-        """Update the stats label."""
-        stats = self.app.db.get_history_stats()
-        stats_text = (
-            f"📥 {stats['total_added']}  |  📤 {stats['total_removed']}  |  "
-            f"💰 {stats['total_sold']} ({stats['total_plat_earned']:.0f}p)"
-        )
-        self.stats_label.configure(text=stats_text)
-    
-    def clear_history(self):
-        """Clear relic history."""
-        from tkinter import messagebox
-        if messagebox.askyesno("Clear History", "Clear all relic history?"):
-            self.app.db.clear_relic_history()
-            self.refresh_history()
-    
-    # ==================== VOID CASCADE RUNS SECTION ====================
-    
-    def _show_cascade_runs(self):
-        """Show the Void Cascade runs section."""
-        self.current_section = "cascade"
-        self._update_toggle_buttons()
-        self._clear_content()
-        self.selected_run = None
-        
-        # Two columns: runs list and run details
         self.content_frame.grid_columnconfigure(0, weight=1)
         self.content_frame.grid_columnconfigure(1, weight=2)
         self.content_frame.grid_rowconfigure(0, weight=1)
@@ -310,6 +42,66 @@ class HistoryTab:
         
         # Right - Run details
         self._create_run_details_panel()
+        
+        return frame
+    
+    def _setup_drops_treeview_style(self):
+        """Setup treeview styling for run drops."""
+        if self._drops_style_configured:
+            return
+        
+        style = ttk.Style()
+        
+        # Configure the treeview (don't call theme_use - it resets other styles)
+        style.configure(
+            "RunDrops.Treeview",
+            background=self.COLORS['bg_secondary'],
+            foreground=self.COLORS['text'],
+            fieldbackground=self.COLORS['bg_secondary'],
+            borderwidth=0,
+            relief="flat",
+            rowheight=32,
+            font=('Segoe UI', 10)
+        )
+        
+        style.configure(
+            "RunDrops.Treeview.Heading",
+            background=self.COLORS['bg_card'],
+            foreground=self.COLORS['text_secondary'],
+            borderwidth=0,
+            relief="flat",
+            font=('Segoe UI', 10, 'bold')
+        )
+        
+        style.map("RunDrops.Treeview",
+            background=[('selected', self.COLORS['accent'])],
+            foreground=[('selected', self.COLORS['text'])]
+        )
+        
+        style.map("RunDrops.Treeview.Heading",
+            background=[('active', self.COLORS['bg_hover'])]
+        )
+        
+        style.layout("RunDrops.Treeview", [
+            ('Treeview.treearea', {'sticky': 'nswe'})
+        ])
+        
+        self._drops_style_configured = True
+
+    def _create_header(self, parent):
+        """Create the header."""
+        header = ctk.CTkFrame(parent, fg_color=self.COLORS['bg_secondary'], corner_radius=12)
+        header.grid(row=0, column=0, sticky="ew", padx=20, pady=(20, 10))
+        header.grid_columnconfigure(1, weight=1)
+        
+        # Title
+        title = ctk.CTkLabel(
+            header,
+            text="⚡ Void Cascade History",
+            font=ctk.CTkFont(size=20, weight="bold"),
+            text_color=self.COLORS['text']
+        )
+        title.grid(row=0, column=0, padx=20, pady=15, sticky="w")
     
     def _create_runs_list(self):
         """Create the cascade runs list."""
@@ -320,7 +112,7 @@ class HistoryTab:
         
         header = ctk.CTkLabel(
             panel,
-            text="⚡ Void Cascade Runs",
+            text="📋 Runs",
             font=ctk.CTkFont(size=14, weight="bold"),
             text_color=self.COLORS['text']
         )
@@ -465,12 +257,51 @@ class HistoryTab:
         )
         delete_btn.grid(row=0, column=2)
         
-        # Drops list
-        drops_scroll = ctk.CTkScrollableFrame(self.details_panel, fg_color="transparent")
-        drops_scroll.grid(row=1, column=0, sticky="nsew", padx=15, pady=(5, 10))
-        drops_scroll.grid_columnconfigure(0, weight=1)
+        # Setup treeview style
+        self._setup_drops_treeview_style()
+        
+        # Drops treeview container
+        tree_container = ctk.CTkFrame(self.details_panel, fg_color=self.COLORS['bg_card'], corner_radius=8)
+        tree_container.grid(row=1, column=0, sticky="nsew", padx=15, pady=(5, 10))
+        tree_container.grid_columnconfigure(0, weight=1)
+        tree_container.grid_rowconfigure(0, weight=1)
+        
+        # Create treeview
+        columns = ("item", "values")
+        self.runs_detail_tree = ttk.Treeview(
+            tree_container,
+            columns=columns,
+            show="headings",
+            style="RunDrops.Treeview",
+            selectmode="browse"
+        )
+        
+        # Configure columns
+        self.runs_detail_tree.heading("item", text="Item", anchor="w")
+        self.runs_detail_tree.heading("values", text="Value", anchor="e")
+        self.runs_detail_tree.column("item", width=300, minwidth=200, anchor="w")
+        self.runs_detail_tree.column("values", width=100, minwidth=80, anchor="e")
+        
+        # Scrollbar
+        scrollbar = ttk.Scrollbar(tree_container, orient="vertical", command=self.runs_detail_tree.yview)
+        self.runs_detail_tree.configure(yscrollcommand=scrollbar.set)
+        
+        self.runs_detail_tree.grid(row=0, column=0, sticky="nsew", padx=(10, 0), pady=10)
+        scrollbar.grid(row=0, column=1, sticky="ns", pady=10, padx=(0, 5))
+        
+        # Configure row tags for rarity colors
+        self.runs_detail_tree.tag_configure('rare', foreground='#ffd700')
+        self.runs_detail_tree.tag_configure('uncommon', foreground='#c0c0c0')
+        self.runs_detail_tree.tag_configure('common', foreground='#cd7f32')
+        self.runs_detail_tree.tag_configure('forma', foreground='#60a5fa')
+        self.runs_detail_tree.tag_configure('evenrow', background=self.COLORS['bg_card'])
+        self.runs_detail_tree.tag_configure('oddrow', background=self.COLORS['bg_secondary'])
         
         rewards = run.get('rewards', [])
+        gold_count = 0
+        silver_count = 0
+        bronze_count = 0
+        
         if rewards:
             # Consolidate duplicates
             consolidated = {}
@@ -486,18 +317,51 @@ class HistoryTab:
                         'qty': 1
                     }
             
-            for i, (item_name, data) in enumerate(consolidated.items()):
-                self._create_drop_row(drops_scroll, item_name, data, i)
-        else:
-            empty = ctk.CTkLabel(
-                drops_scroll,
-                text="No drops recorded",
-                font=ctk.CTkFont(size=12),
-                text_color=self.COLORS['text_muted']
+            # Sort by rarity: Rare -> Uncommon -> Common -> Forma
+            rarity_order = {'Rare': 0, 'Uncommon': 1, 'Common': 2, 'Forma Blueprint': 3}
+            sorted_items = sorted(
+                consolidated.items(),
+                key=lambda x: (rarity_order.get(x[1]['rarity'], 2), x[0])
             )
-            empty.grid(row=0, column=0, pady=30)
+            
+            # Insert rows
+            for i, (item_name, data) in enumerate(sorted_items):
+                rarity = data['rarity']
+                qty = data['qty']
+                total_plat = data['plat'] * qty
+                total_ducats = data['ducats'] * qty
+                
+                # Count by rarity
+                if rarity == 'Rare':
+                    gold_count += qty
+                elif rarity == 'Uncommon':
+                    silver_count += qty
+                elif rarity == 'Common':
+                    bronze_count += qty
+                
+                # Determine tag
+                if rarity == 'Rare':
+                    tag = 'rare'
+                elif rarity == 'Uncommon':
+                    tag = 'uncommon'
+                elif rarity == 'Forma Blueprint' or 'Forma' in item_name:
+                    tag = 'forma'
+                else:
+                    tag = 'common'
+                
+                row_tag = 'evenrow' if i % 2 == 0 else 'oddrow'
+                
+                qty_text = f" x{qty}" if qty > 1 else ""
+                item_text = f"● {item_name}{qty_text}"
+                value_text = f"{total_plat}p • {total_ducats}d"
+                
+                self.runs_detail_tree.insert(
+                    "", "end",
+                    values=(item_text, value_text),
+                    tags=(tag, row_tag)
+                )
         
-        # Totals
+        # Totals with G/S/B counter
         totals = ctk.CTkFrame(self.details_panel, fg_color=self.COLORS['bg_card'], corner_radius=8)
         totals.grid(row=2, column=0, sticky="ew", padx=15, pady=(0, 15))
         
@@ -505,45 +369,22 @@ class HistoryTab:
         total_plat = run.get('total_plat', 0)
         total_ducats = run.get('total_ducats', 0)
         
+        # Build totals text with G/S/B
+        gsb_parts = []
+        if gold_count > 0:
+            gsb_parts.append(f"🥇{gold_count}")
+        if silver_count > 0:
+            gsb_parts.append(f"🥈{silver_count}")
+        if bronze_count > 0:
+            gsb_parts.append(f"🥉{bronze_count}")
+        gsb_text = " ".join(gsb_parts) + "  •  " if gsb_parts else ""
+        
         ctk.CTkLabel(
             totals,
-            text=f"{total_drops} drops  •  {total_plat}p  •  {total_ducats} ducats",
+            text=f"{gsb_text}{total_drops} drops  •  {total_plat}p  •  {total_ducats} ducats",
             font=ctk.CTkFont(size=13, weight="bold"),
             text_color=self.COLORS['text']
         ).pack(pady=10)
-    
-    def _create_drop_row(self, parent, item_name, data, index):
-        """Create a drop row for run details."""
-        row = ctk.CTkFrame(parent, fg_color=self.COLORS['bg_card'], corner_radius=6)
-        row.grid(row=index, column=0, sticky="ew", pady=2)
-        row.grid_columnconfigure(0, weight=1)
-        
-        rarity_colors = {
-            'Common': '#cd7f32',
-            'Uncommon': '#c0c0c0',
-            'Rare': '#ffd700',
-            'Forma Blueprint': '#60a5fa'
-        }
-        color = rarity_colors.get(data['rarity'], self.COLORS['text'])
-        
-        qty_text = f" x{data['qty']}" if data['qty'] > 1 else ""
-        name_lbl = ctk.CTkLabel(
-            row,
-            text=f"● {item_name}{qty_text}",
-            font=ctk.CTkFont(size=11, weight="bold" if data['qty'] > 1 else "normal"),
-            text_color=color
-        )
-        name_lbl.grid(row=0, column=0, padx=10, pady=6, sticky="w")
-        
-        total_plat = data['plat'] * data['qty']
-        total_ducats = data['ducats'] * data['qty']
-        vals = ctk.CTkLabel(
-            row,
-            text=f"{total_plat}p  •  {total_ducats}d",
-            font=ctk.CTkFont(size=10),
-            text_color=self.COLORS['text_secondary']
-        )
-        vals.grid(row=0, column=1, padx=10, pady=6, sticky="e")
     
     def _delete_run(self, run):
         """Delete a cascade run."""

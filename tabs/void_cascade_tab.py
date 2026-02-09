@@ -4,6 +4,8 @@ Track drops earned during Void Cascade runs.
 """
 
 import customtkinter as ctk
+from tkinter import ttk
+import tkinter as tk
 from datetime import datetime
 from api import WFCDRelicDatabase
 from database import RelicDatabase
@@ -51,6 +53,9 @@ class VoidCascadeTab:
     
     def _get_ducats(self, item_name: str, rarity: str) -> int:
         """Get ducat value for an item."""
+        # Forma Blueprint has no ducat value
+        if "Forma" in item_name or rarity == "Forma Blueprint":
+            return 0
         if item_name in self._ducat_cache:
             return self._ducat_cache[item_name]
         return self.DUCAT_VALUES.get(rarity, 15)
@@ -158,7 +163,8 @@ class VoidCascadeTab:
     def _show_active_run(self):
         """Show the active run interface for logging drops."""
         self._clear_run_panel()
-        self.run_panel.grid_rowconfigure(2, weight=1)
+        self.run_panel.grid_rowconfigure(2, weight=0)
+        self.run_panel.grid_rowconfigure(3, weight=1)
         
         # Header with title and controls
         header = ctk.CTkFrame(self.run_panel, fg_color="transparent")
@@ -230,133 +236,208 @@ class VoidCascadeTab:
         self.suggestions_frame.grid(row=2, column=0, sticky="new", padx=20)
         self.suggestions_frame.grid_remove()
         
-        # Drops list
-        drops_container = ctk.CTkFrame(self.run_panel, fg_color="transparent")
+        # Setup treeview style for drops
+        self._setup_drops_treeview_style()
+        
+        # Drops treeview container
+        drops_container = ctk.CTkFrame(self.run_panel, fg_color=self.COLORS['bg_card'], corner_radius=8)
         drops_container.grid(row=3, column=0, sticky="nsew", padx=20, pady=(10, 10))
         drops_container.grid_columnconfigure(0, weight=1)
         drops_container.grid_rowconfigure(0, weight=1)
         
-        self.drops_scroll = ctk.CTkScrollableFrame(drops_container, fg_color="transparent")
-        self.drops_scroll.grid(row=0, column=0, sticky="nsew")
-        self.drops_scroll.grid_columnconfigure(0, weight=1)
+        # Create treeview with scrollbar
+        tree_frame = tk.Frame(drops_container, bg="#1e1e1e")
+        tree_frame.pack(fill="both", expand=True, padx=8, pady=8)
+        tree_frame.grid_columnconfigure(0, weight=1)
+        tree_frame.grid_rowconfigure(0, weight=1)
         
-        # Update row config
-        self.run_panel.grid_rowconfigure(3, weight=1)
+        scrollbar = ttk.Scrollbar(tree_frame, orient="vertical")
+        scrollbar.grid(row=0, column=1, sticky="ns")
+        
+        # Treeview for drops with +/- columns
+        self.drops_tree = ttk.Treeview(
+            tree_frame,
+            columns=("item", "plat", "ducats", "plus", "minus"),
+            show="headings",
+            style="Drops.Treeview",
+            yscrollcommand=scrollbar.set,
+            selectmode="browse"
+        )
+        self.drops_tree.grid(row=0, column=0, sticky="nsew")
+        scrollbar.config(command=self.drops_tree.yview)
+        
+        # Configure columns
+        self.drops_tree.heading("item", text="Item")
+        self.drops_tree.heading("plat", text="Plat")
+        self.drops_tree.heading("ducats", text="Ducats")
+        self.drops_tree.heading("plus", text="")
+        self.drops_tree.heading("minus", text="")
+        
+        self.drops_tree.column("item", width=340, anchor="w")
+        self.drops_tree.column("plat", width=70, anchor="center")
+        self.drops_tree.column("ducats", width=70, anchor="center")
+        self.drops_tree.column("plus", width=28, anchor="center")
+        self.drops_tree.column("minus", width=28, anchor="center")
+        
+        # Configure tags for rarity colors
+        self.drops_tree.tag_configure('rare', foreground='#ffd700')
+        self.drops_tree.tag_configure('uncommon', foreground='#c0c0c0')
+        self.drops_tree.tag_configure('common', foreground='#cd7f32')
+        self.drops_tree.tag_configure('forma', foreground='#60a5fa')
+        self.drops_tree.tag_configure('oddrow', background='#2a2a35')
+        self.drops_tree.tag_configure('evenrow', background='#232329')
+        
+        # Bind click to handle +/- buttons
+        self.drops_tree.bind('<ButtonRelease-1>', self._on_tree_click)
         
         # Totals bar
         totals = ctk.CTkFrame(self.run_panel, fg_color=self.COLORS['bg_card'], corner_radius=8)
         totals.grid(row=4, column=0, sticky="ew", padx=20, pady=(0, 15))
         
+        totals_inner = ctk.CTkFrame(totals, fg_color="transparent")
+        totals_inner.pack(pady=12)
+        
+        # Clickable GSB label
+        self.gsb_label = ctk.CTkButton(
+            totals_inner,
+            text="",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            fg_color="transparent",
+            hover_color=self.COLORS['bg_hover'],
+            text_color=self.COLORS['accent'],
+            width=0,
+            height=24,
+            command=self._copy_gsb_to_clipboard
+        )
+        self.gsb_label.pack(side="left")
+        self.gsb_label.pack_forget()  # Hide initially
+        
         self.totals_label = ctk.CTkLabel(
-            totals,
+            totals_inner,
             text="0 drops  •  0p  •  0 ducats",
             font=ctk.CTkFont(size=14, weight="bold"),
             text_color=self.COLORS['text']
         )
-        self.totals_label.pack(pady=12)
+        self.totals_label.pack(side="left")
+        
+        self._current_gsb = ""  # Store current GSB string
         
         self._refresh_drops_list()
     
-    def _refresh_drops_list(self):
-        """Refresh the current run's drops display."""
-        if not hasattr(self, 'drops_scroll'):
+    def _setup_drops_treeview_style(self):
+        """Setup ttk style for drops treeview."""
+        style = ttk.Style()
+        style.theme_use("clam")
+        
+        style.configure(
+            "Drops.Treeview",
+            background="#232329",
+            foreground=self.COLORS['text'],
+            fieldbackground="#232329",
+            borderwidth=0,
+            font=('Segoe UI', 12),
+            rowheight=38
+        )
+        
+        style.configure(
+            "Drops.Treeview.Heading",
+            background="#1e1e24",
+            foreground=self.COLORS['text_secondary'],
+            font=('Segoe UI', 11, 'bold'),
+            borderwidth=0,
+            relief='flat',
+            padding=(10, 8)
+        )
+        
+        style.map(
+            "Drops.Treeview",
+            background=[('selected', self.COLORS['accent'])],
+            foreground=[('selected', '#ffffff')]
+        )
+    
+    def _on_tree_click(self, event):
+        """Handle click on treeview - detect +/- column clicks."""
+        region = self.drops_tree.identify("region", event.x, event.y)
+        if region != "cell":
             return
         
-        for widget in self.drops_scroll.winfo_children():
-            widget.destroy()
+        column = self.drops_tree.identify_column(event.x)
+        item = self.drops_tree.identify_row(event.y)
+        
+        if not item:
+            return
+        
+        values = self.drops_tree.item(item, 'values')
+        if not values or values[0] == "No drops yet - search above to add":
+            return
+        
+        # Extract item name (remove bullet and quantity)
+        item_name = values[0]
+        if ' x' in item_name:
+            item_name = item_name.rsplit(' x', 1)[0]
+        item_name = item_name.replace('● ', '')
+        
+        # column #4 is plus, #5 is minus
+        if column == '#4':
+            self._increase_drop(item_name)
+        elif column == '#5':
+            self._decrease_drop(item_name)
+    
+    def _refresh_drops_list(self):
+        """Refresh the current run's drops display using treeview."""
+        if not hasattr(self, 'drops_tree'):
+            return
+        
+        # Clear existing items
+        for item in self.drops_tree.get_children():
+            self.drops_tree.delete(item)
         
         if not self.current_run_drops:
-            empty = ctk.CTkLabel(
-                self.drops_scroll,
-                text="Add drops as you get them!\nType above to search and add items.",
-                font=ctk.CTkFont(size=12),
-                text_color=self.COLORS['text_muted'],
-                justify="center"
-            )
-            empty.grid(row=0, column=0, pady=40)
+            # Show empty message in first row
+            self.drops_tree.insert("", "end", values=("No drops yet - search above to add", "", "", "", ""), tags=('evenrow',))
         else:
-            for i, (item_name, drop_data) in enumerate(self.current_run_drops.items()):
-                self._create_drop_row(item_name, drop_data, i)
+            # Sort by rarity: Rare -> Uncommon -> Common -> Forma
+            rarity_order = {'Rare': 0, 'Uncommon': 1, 'Common': 2, 'Forma Blueprint': 3}
+            sorted_drops = sorted(
+                self.current_run_drops.items(),
+                key=lambda x: (rarity_order.get(x[1]['rarity'], 2), x[0])
+            )
+            
+            for i, (item_name, drop_data) in enumerate(sorted_drops):
+                rarity = drop_data['rarity']
+                plat = drop_data['plat']
+                ducats = drop_data['ducats']
+                qty = drop_data['qty']
+                
+                # Get rarity tag
+                rarity_tag = {
+                    'Rare': 'rare',
+                    'Uncommon': 'uncommon',
+                    'Common': 'common',
+                    'Forma Blueprint': 'forma'
+                }.get(rarity, 'common')
+                
+                # Row color tag
+                row_tag = 'evenrow' if i % 2 == 0 else 'oddrow'
+                
+                # Build display text
+                qty_text = f" x{qty}" if qty > 1 else ""
+                display_name = f"● {item_name}{qty_text}"
+                
+                # Calculate totals
+                total_plat = plat * qty
+                total_ducats = ducats * qty
+                
+                self.drops_tree.insert(
+                    "", "end",
+                    values=(display_name, f"{total_plat}p", f"{total_ducats}d", "➕", "➖"),
+                    tags=(rarity_tag, row_tag)
+                )
         
         self._update_totals()
     
-    def _create_drop_row(self, item_name, drop_data, index):
-        """Create an editable drop row for current run with +/- buttons."""
-        row = ctk.CTkFrame(self.drops_scroll, fg_color=self.COLORS['bg_card'], corner_radius=6)
-        row.grid(row=index, column=0, sticky="ew", pady=2)
-        row.grid_columnconfigure(0, weight=1)
-        
-        rarity = drop_data['rarity']
-        plat = drop_data['plat']
-        ducats = drop_data['ducats']
-        qty = drop_data['qty']
-        
-        # Rarity color
-        rarity_colors = {
-            'Common': '#cd7f32',
-            'Uncommon': '#c0c0c0',
-            'Rare': '#ffd700',
-            'Forma Blueprint': '#60a5fa'
-        }
-        color = rarity_colors.get(rarity, self.COLORS['text'])
-        
-        # Item name with rarity indicator and quantity
-        qty_text = f" x{qty}" if qty > 1 else ""
-        name_lbl = ctk.CTkLabel(
-            row,
-            text=f"● {item_name}{qty_text}",
-            font=ctk.CTkFont(size=12, weight="bold" if qty > 1 else "normal"),
-            text_color=color
-        )
-        name_lbl.grid(row=0, column=0, padx=12, pady=8, sticky="w")
-        
-        # Values (total for qty)
-        total_plat = plat * qty
-        total_ducats = ducats * qty
-        vals = ctk.CTkLabel(
-            row,
-            text=f"{total_plat}p  •  {total_ducats}d",
-            font=ctk.CTkFont(size=11),
-            text_color=self.COLORS['text_secondary']
-        )
-        vals.grid(row=0, column=1, padx=(0, 10), pady=8)
-        
-        # +/- buttons frame
-        btn_frame = ctk.CTkFrame(row, fg_color="transparent")
-        btn_frame.grid(row=0, column=2, padx=(0, 8), pady=4)
-        
-        # Plus button
-        plus_btn = ctk.CTkButton(
-            btn_frame,
-            text="+",
-            font=ctk.CTkFont(size=14, weight="bold"),
-            fg_color=self.COLORS['bg_hover'],
-            hover_color=self.COLORS['success'],
-            text_color=self.COLORS['text'],
-            width=28,
-            height=28,
-            corner_radius=4,
-            command=lambda n=item_name: self._increase_drop(n)
-        )
-        plus_btn.pack(side="left", padx=2)
-        
-        # Minus button
-        minus_btn = ctk.CTkButton(
-            btn_frame,
-            text="−",
-            font=ctk.CTkFont(size=14, weight="bold"),
-            fg_color=self.COLORS['bg_hover'],
-            hover_color=self.COLORS['error'],
-            text_color=self.COLORS['text'],
-            width=28,
-            height=28,
-            corner_radius=4,
-            command=lambda n=item_name: self._decrease_drop(n)
-        )
-        minus_btn.pack(side="left", padx=2)
-    
     def _update_totals(self):
-        """Update the totals display."""
+        """Update the totals display with rarity counters."""
         if not hasattr(self, 'totals_label'):
             return
         
@@ -364,7 +445,40 @@ class VoidCascadeTab:
         total_ducats = sum(d['ducats'] * d['qty'] for d in self.current_run_drops.values())
         count = sum(d['qty'] for d in self.current_run_drops.values())
         
-        self.totals_label.configure(text=f"{count} drops  •  {total_plat}p  •  {total_ducats} ducats")
+        # Count by rarity
+        gold = sum(d['qty'] for d in self.current_run_drops.values() if d['rarity'] == 'Rare')
+        silver = sum(d['qty'] for d in self.current_run_drops.values() if d['rarity'] == 'Uncommon')
+        bronze = sum(d['qty'] for d in self.current_run_drops.values() if d['rarity'] == 'Common')
+        
+        # Build rarity counter string
+        rarity_parts = []
+        if gold > 0:
+            rarity_parts.append(f"{gold}G")
+        if silver > 0:
+            rarity_parts.append(f"{silver}S")
+        if bronze > 0:
+            rarity_parts.append(f"{bronze}B")
+        
+        rarity_str = " ".join(rarity_parts) if rarity_parts else ""
+        self._current_gsb = rarity_str
+        
+        if rarity_str:
+            self.gsb_label.configure(text=f"📋 {rarity_str}  •  ")
+            self.gsb_label.pack(side="left")
+            self.totals_label.configure(text=f"{count} drops  •  {total_plat}p  •  {total_ducats} ducats")
+        else:
+            self.gsb_label.pack_forget()
+            self.totals_label.configure(text=f"{count} drops  •  {total_plat}p  •  {total_ducats} ducats")
+    
+    def _copy_gsb_to_clipboard(self):
+        """Copy GSB string to clipboard."""
+        if self._current_gsb:
+            self.app.clipboard_clear()
+            self.app.clipboard_append(self._current_gsb)
+            # Show brief feedback
+            original_text = self.gsb_label.cget("text")
+            self.gsb_label.configure(text="✓ Copied!  •  ")
+            self.app.after(1000, lambda: self.gsb_label.configure(text=original_text))
     
     def _on_search(self, event):
         """Handle search input."""
@@ -381,8 +495,11 @@ class VoidCascadeTab:
             if query in item_name.lower() and item_name not in seen:
                 matches.append((item_name, rarity))
                 seen.add(item_name)
-            if len(matches) >= 8:
-                break
+        
+        # Sort by rarity: Rare -> Uncommon -> Common -> Forma
+        rarity_order = {'Rare': 0, 'Uncommon': 1, 'Common': 2, 'Forma Blueprint': 3}
+        matches.sort(key=lambda x: (rarity_order.get(x[1], 2), x[0]))
+        matches = matches[:8]  # Limit after sorting
         
         # Clear old suggestions
         for widget in self.suggestions_frame.winfo_children():

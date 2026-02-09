@@ -119,7 +119,7 @@ class PricesTab:
         
         self.filter_entry = ctk.CTkEntry(
             search_frame,
-            placeholder_text="Filter items...",
+            placeholder_text="Filter by item or relic name (e.g., 'Axi A11')...",
             font=ctk.CTkFont(size=13),
             height=38,
             corner_radius=8,
@@ -390,10 +390,17 @@ class PricesTab:
             # Get prices with relic info
             prices = self.wfcd_db.get_prices_for_rare_items()
             
-            # Filter
+            # Filter by item name OR relic name
             filter_text = self.filter_entry.get().lower() if self.filter_entry else ""
             if filter_text:
-                prices = [p for p in prices if filter_text in p['item_name'].lower()]
+                filtered_prices = []
+                for p in prices:
+                    item_name = p['item_name'].lower()
+                    relics = (p['relics'] or "").lower()
+                    # Match if filter text is in item name OR in relics column
+                    if filter_text in item_name or filter_text in relics:
+                        filtered_prices.append(p)
+                prices = filtered_prices
             
             # Sort
             sort_by = self.sort_var.get() if hasattr(self, 'sort_var') else "Price (High)"

@@ -22,8 +22,8 @@ class VoidRelicsTab:
         self.wfcd_db = WFCDRelicDatabase()
         self.market_api = WarframeMarketAPI()
         self.relic_data = []  # List of dicts with relic + gold reward info
-        self.sort_column = "profit"
-        self.sort_reverse = True  # High to low by default
+        self.sort_column = "relic_price"
+        self.sort_reverse = False  # Lowest price at top by default
         self.min_gold_price = 20
         self._fetching = False
         self._cancel_fetch = False
@@ -109,9 +109,62 @@ class VoidRelicsTab:
         )
         era_dropdown.pack(side="left")
         
+        # Max Buy Price filter
+        buy_filter_frame = ctk.CTkFrame(controls, fg_color="transparent")
+        buy_filter_frame.grid(row=0, column=2, padx=10, pady=15)
+        
+        ctk.CTkLabel(
+            buy_filter_frame,
+            text="Max Buy:",
+            font=ctk.CTkFont(size=12),
+            text_color=self.COLORS['text_secondary']
+        ).pack(side="left", padx=(0, 5))
+        
+        self.max_buy_var = ctk.StringVar(value="")
+        max_buy_entry = ctk.CTkEntry(
+            buy_filter_frame,
+            textvariable=self.max_buy_var,
+            font=ctk.CTkFont(size=12),
+            fg_color=self.COLORS['bg_secondary'],
+            border_width=0,
+            width=60,
+            height=32,
+            placeholder_text="∞"
+        )
+        max_buy_entry.pack(side="left")
+        max_buy_entry.bind("<KeyRelease>", lambda e: self._refresh_display())
+        
+        # Min Gold Price filter
+        gold_filter_frame = ctk.CTkFrame(controls, fg_color="transparent")
+        gold_filter_frame.grid(row=0, column=3, padx=10, pady=15)
+        
+        ctk.CTkLabel(
+            gold_filter_frame,
+            text="Min Gold:",
+            font=ctk.CTkFont(size=12),
+            text_color=self.COLORS['text_secondary']
+        ).pack(side="left", padx=(0, 5))
+        
+        self.min_gold_var = ctk.StringVar(value="20")
+        min_gold_entry = ctk.CTkEntry(
+            gold_filter_frame,
+            textvariable=self.min_gold_var,
+            font=ctk.CTkFont(size=12),
+            fg_color=self.COLORS['bg_secondary'],
+            border_width=0,
+            width=60,
+            height=32,
+            placeholder_text="20"
+        )
+        min_gold_entry.pack(side="left")
+        min_gold_entry.bind("<KeyRelease>", lambda e: self._refresh_display())
+        
+        # Configure column 4 to expand and push status/count to right
+        controls.grid_columnconfigure(4, weight=1)
+        
         # Status and progress
         status_frame = ctk.CTkFrame(controls, fg_color="transparent")
-        status_frame.grid(row=0, column=2, padx=15, pady=15, sticky="ew")
+        status_frame.grid(row=0, column=4, padx=15, pady=15, sticky="e")
         status_frame.grid_columnconfigure(0, weight=1)
         
         self.status_label = ctk.CTkLabel(
@@ -133,14 +186,14 @@ class VoidRelicsTab:
         self.progress_bar.set(0)
         self.progress_bar.grid_remove()  # Hidden initially
         
-        # Count label
+        # Count label (column 5, after status frame)
         self.count_label = ctk.CTkLabel(
             controls,
             text="",
             font=ctk.CTkFont(size=12, weight="bold"),
             text_color=self.COLORS['success']
         )
-        self.count_label.grid(row=0, column=3, padx=15)
+        self.count_label.grid(row=0, column=5, padx=15)
         
         # Treeview container with dark theme (matching Prices tab)
         self.tree_frame = ctk.CTkFrame(frame, fg_color=self.COLORS['bg_secondary'], corner_radius=12)
@@ -520,8 +573,9 @@ class VoidRelicsTab:
                         min_price = min(l.price for l in ingame_sellers)
                         relic['relic_price'] = min_price
                         
-                        # Find seller with most stock
-                        top_seller = max(ingame_sellers, key=lambda l: l.quantity)
+                        # Find cheapest seller (with most stock if tied)
+                        cheapest_sellers = [l for l in ingame_sellers if l.price == min_price]
+                        top_seller = max(cheapest_sellers, key=lambda l: l.quantity)
                         relic['top_seller'] = top_seller.seller
                         relic['stock'] = top_seller.quantity
                         
@@ -601,12 +655,50 @@ class VoidRelicsTab:
         if not self.tree:
             return
         
-        # Get all items and find the one to update
-        children = self.tree.get_children()
-        if index >= len(children):
+        # Find item by relic full_name (iid) instead of index
+        iid = relic['full_name'].replace(' ', '_')
+        row_exists = self.tree.exists(iid)
+        
+        # Check max buy filter
+        max_buy_val = None
+        try:
+            max_buy = self.max_buy_var.get().strip()
+            if max_buy:
+                max_buy_val = int(max_buy)
+        except (ValueError, AttributeError):
+            pass
+        
+        # Check era filter
+        filter_era = self.filter_var.get()
+        if filter_era != "All" and relic['era'] != filter_era:
+            if row_exists:
+                self.tree.delete(iid)
             return
         
-        item_id = children[index]
+        # Check min gold filter
+        try:
+            min_gold = self.min_gold_var.get().strip()
+            if min_gold:
+                min_gold_val = int(min_gold)
+                if relic['gold_price'] < min_gold_val:
+                    if row_exists:
+                        self.tree.delete(iid)
+                    return
+        except (ValueError, AttributeError):
+            pass
+        
+        # If max buy filter is set, only show relics with price within limit
+        if max_buy_val is not None:
+            if relic['relic_price'] is None:
+                # No price yet, don't show
+                if row_exists:
+                    self.tree.delete(iid)
+                return
+            if relic['relic_price'] > max_buy_val:
+                # Price exceeds filter
+                if row_exists:
+                    self.tree.delete(iid)
+                return
         
         # Build new values
         relic_price = f"{relic['relic_price']}p" if relic['relic_price'] else "—"
@@ -623,8 +715,12 @@ class VoidRelicsTab:
             stock_text
         )
         
-        # Update the row values
-        self.tree.item(item_id, values=values)
+        if row_exists:
+            # Update the row values
+            self.tree.item(iid, values=values)
+        else:
+            # Insert new row (passes all filters)
+            self.tree.insert("", "end", iid=iid, values=values)
     
     def _update_progress(self, text: str, progress: float):
         """Update status and progress (thread-safe)."""
@@ -700,7 +796,25 @@ class VoidRelicsTab:
         filter_era = self.filter_var.get()
         filtered = self.relic_data
         if filter_era != "All":
-            filtered = [r for r in self.relic_data if r['era'] == filter_era]
+            filtered = [r for r in filtered if r['era'] == filter_era]
+        
+        # Apply max buy price filter (hide relics without price when filter is set)
+        try:
+            max_buy = self.max_buy_var.get().strip()
+            if max_buy:
+                max_buy_val = int(max_buy)
+                filtered = [r for r in filtered if r['relic_price'] is not None and r['relic_price'] <= max_buy_val]
+        except (ValueError, AttributeError):
+            pass
+        
+        # Apply min gold price filter
+        try:
+            min_gold = self.min_gold_var.get().strip()
+            if min_gold:
+                min_gold_val = int(min_gold)
+                filtered = [r for r in filtered if r['gold_price'] >= min_gold_val]
+        except (ValueError, AttributeError):
+            pass
         
         if not filtered:
             return
@@ -727,7 +841,9 @@ class VoidRelicsTab:
                 stock_text
             )
             
-            self.tree.insert("", "end", values=values, tags=tags)
+            # Use relic full_name as iid for easy lookup during updates
+            iid = relic['full_name'].replace(' ', '_')
+            self.tree.insert("", "end", iid=iid, values=values, tags=tags)
     
     def _sort_by(self, column: str):
         """Sort relics by column."""

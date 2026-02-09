@@ -246,20 +246,18 @@ class InventoryTab:
                  foreground=[('selected', '#ffffff')])
         
         # Create treeview
-        columns = ('era', 'name', 'gold_drop', 'price', 'refinement', 'quantity')
+        columns = ('relic', 'gold_drop', 'price', 'refinement', 'quantity')
         self.inv_tree = ttk.Treeview(tree_frame, columns=columns, show='headings', 
                                      style="Inventory.Treeview", selectmode='browse')
         
-        self.inv_tree.heading('era', text='ERA')
-        self.inv_tree.heading('name', text='RELIC')
+        self.inv_tree.heading('relic', text='RELIC')
         self.inv_tree.heading('gold_drop', text='GOLD DROP')
         self.inv_tree.heading('price', text='PLAT')
         self.inv_tree.heading('refinement', text='REFINE')
         self.inv_tree.heading('quantity', text='QTY')
         
-        self.inv_tree.column('era', width=70, anchor='center', minwidth=60)
-        self.inv_tree.column('name', width=80, anchor='center', minwidth=70)
-        self.inv_tree.column('gold_drop', width=280, anchor='w', minwidth=200)
+        self.inv_tree.column('relic', width=120, anchor='center', minwidth=100)
+        self.inv_tree.column('gold_drop', width=280, anchor='center', minwidth=200)
         self.inv_tree.column('price', width=70, anchor='center', minwidth=60)
         self.inv_tree.column('refinement', width=100, anchor='center', minwidth=80)
         self.inv_tree.column('quantity', width=60, anchor='center', minwidth=50)
@@ -449,8 +447,12 @@ class InventoryTab:
         item_id = selection[0]
         # Find the inventory item by matching the tree item
         values = self.inv_tree.item(item_id, 'values')
-        # Columns: era, name, gold_drop, price, refinement, quantity
-        era, name, gold_drop, price, ref, qty = values
+        # Columns: relic, gold_drop, price, refinement, quantity
+        relic_name, gold_drop, price, ref, qty = values
+        # Parse era and name from combined relic column
+        parts = relic_name.split(' ', 1)
+        era = parts[0] if len(parts) > 0 else ''
+        name = parts[1] if len(parts) > 1 else ''
         
         for inv_item in self.app.inventory:
             if (inv_item.relic and 
@@ -478,8 +480,12 @@ class InventoryTab:
         
         item_id = selection[0]
         values = self.inv_tree.item(item_id, 'values')
-        # Columns: era, name, gold_drop, price, refinement, quantity
-        era, name, gold_drop, price, ref, qty = values
+        # Columns: relic, gold_drop, price, refinement, quantity
+        relic_name, gold_drop, price, ref, qty = values
+        # Parse era and name from combined relic column
+        parts = relic_name.split(' ', 1)
+        era = parts[0] if len(parts) > 0 else ''
+        name = parts[1] if len(parts) > 1 else ''
         
         for inv_item in self.app.inventory:
             if (inv_item.relic and 
@@ -635,9 +641,11 @@ class InventoryTab:
             # Apply alternating row tag
             row_tag = 'oddrow' if idx % 2 == 1 else 'evenrow'
             
+            # Combined relic name (e.g., "Meso N14")
+            relic_combined = f"{era} {name}"
+            
             self.inv_tree.insert('', 'end', values=(
-                era,
-                name,
+                relic_combined,
                 gold_drop,
                 price_str,
                 item.refinement.value,

@@ -21,7 +21,7 @@ from database import RelicDatabase, get_db_dir
 from icon_manager import get_mastery_icon_path, get_platinum_icon_path, get_credits_icon_path, get_ducats_icon_path
 
 # Import tab modules
-from tabs import PricesTab, CalculatorTab, InventoryTab, VoidCascadeTab, HistoryTab, VoidRelicsTab
+from tabs import PricesTab, InventoryTab, VoidCascadeTab, HistoryTab, VoidRelicsTab
 
 # Set appearance mode and default color theme
 ctk.set_appearance_mode("dark")
@@ -97,7 +97,6 @@ class ModernRelicApp(ctk.CTk):
         # Initialize tab handlers
 
         self.prices_tab = PricesTab(self)
-        self.calculator_tab = CalculatorTab(self)
         self.inventory_tab = InventoryTab(self)
         self.cascade_tab = VoidCascadeTab(self)
         self.history_tab = HistoryTab(self)
@@ -362,7 +361,6 @@ class ModernRelicApp(ctk.CTk):
         # Navigation buttons (rows 2-4)
         nav_items = [
             ("💰", "Prices", "prices"),
-            ("📊", "Calculator", "calculator"),
             ("🎒", "Inventory", "inventory"),
             ("🔮", "Void Relics", "relics"),
             ("⚡", "Void Cascade", "cascade"),
@@ -460,7 +458,6 @@ class ModernRelicApp(ctk.CTk):
     def create_content_frames(self):
         """Create all content frames."""
         self.frames["prices"] = self.prices_tab.create_frame(self.main_frame)
-        self.frames["calculator"] = self.calculator_tab.create_frame(self.main_frame)
         self.frames["inventory"] = self.inventory_tab.create_frame(self.main_frame)
         self.frames["relics"] = self.relics_tab.create_frame(self.main_frame)
         self.frames["cascade"] = self.cascade_tab.create_frame(self.main_frame)
