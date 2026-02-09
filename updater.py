@@ -25,7 +25,7 @@ except ImportError:
 
 
 # Current version - increment this with each release
-__version__ = "1.1.9"
+__version__ = "1.2.0"
 
 # GitHub repository info
 GITHUB_OWNER = "RelicRush"
@@ -446,6 +446,12 @@ echo Update installed successfully!
 
 :: Clean up backup
 del /f /q "{current_exe_path}.backup" >NUL 2>&1
+
+:: Clean up old PyInstaller temp folders to prevent DLL conflicts
+echo Cleaning up temporary files...
+for /d %%D in ("%TEMP%\\_MEI*") do (
+    rmdir /s /q "%%D" >NUL 2>&1
+)
 
 :: Small delay before launching
 timeout /t 2 /nobreak >NUL
